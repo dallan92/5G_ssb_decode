@@ -2,7 +2,7 @@
 This software detects and decodes the SSB in 5G NR. Can be tested with captured file or USRP. Verified using Amarisoft gNB.   
 
 ## Dependencies 
-libfftw3 (sudo apt install ibfftw3-dev)
+libfftw3 (sudo apt install ibfftw3-dev) </br>
 UHD (sudo apt-get install libuhd-dev uhd-host)
 
 ## Build + run code
