@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <yaml.h>
 
 /* Function to read test signal from MATLAB */
 void readTestSig(float complex *x, int length) {
@@ -260,4 +261,112 @@ void dec2bin(unsigned int x, unsigned int n, unsigned char *bin) {
     bin[i] = x & 1;
     x >>= 1;
   }
+}
+
+/* Validate config file based on source */
+void validate_config(const config_t *configParams) {
+
+  if (configParams->src == 0) {
+    int cnt = 0;
+    if (configParams->fs == -1.0) {
+      printf("You must specify a sample rate for the USRP.\n");
+      cnt += 1;
+    }
+    if (configParams->rx_gain == -1.0) {
+      printf("You must specify a receive gain for the USRP.\n");
+      cnt += 1;
+    }
+    if (configParams->fc == -1.0) {
+      printf("You must specify a centre frequency for the USRP.\n");
+      cnt += 1;
+    }
+    if (configParams->dur == -1.0) {
+      printf("You must specify a capture duration for the USRP.\n");
+      cnt += 1;
+    }
+    if (cnt != 0) {
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    int cnt = 0;
+    if (configParams->fs == -1.0) {
+      printf("You must specify the sample rate of the recorded signal.\n");
+      cnt += 1;
+    }
+    if (configParams->dur == -1.0) {
+      printf("You must specify the duration of the recorded signal.\n");
+      cnt += 1;
+    }
+    if (cnt != 0) {
+      exit(EXIT_FAILURE);
+    }
+  }
+}
+
+/* Parse config.yaml */
+config_t parse_capture_config(const char *filename) {
+
+  // Open config file for reading
+  FILE *fh = fopen(filename, "r");
+  if (fh == NULL)
+    exit(EXIT_FAILURE);
+
+  // Initialize config struct with default values
+  config_t config;
+  config.src = 0;
+  config.fs = -1.0;
+  config.rx_gain = -1.0;
+  config.fc = -1.0;
+  config.dur = -1.0;
+
+  // YAML parsing
+  yaml_parser_t parser;
+  yaml_token_t token;
+  yaml_parser_initialize(&parser);
+  yaml_parser_set_input_file(&parser, fh);
+
+  char last_key[32] = {0};
+
+  while (1) {
+    yaml_parser_scan(&parser, &token);
+    if (token.type == YAML_STREAM_END_TOKEN) {
+      yaml_token_delete(&token);
+      yaml_parser_delete(&parser);
+      fclose(fh);
+      validate_config(&config); // Validate after reading entire file.
+      break;
+    }
+
+    if (token.type == YAML_KEY_TOKEN) {
+      yaml_parser_scan(&parser, &token);
+      if (token.type == YAML_SCALAR_TOKEN) {
+        strncpy(last_key, (char *)token.data.scalar.value,
+                sizeof(last_key) - 1);
+      }
+    } else if (token.type == YAML_VALUE_TOKEN) {
+      yaml_parser_scan(&parser, &token);
+      if (token.type == YAML_SCALAR_TOKEN) {
+        if (strcmp(last_key, "source") == 0) {
+          if (strcmp((char *)token.data.scalar.value, "usrp") == 0) {
+            config.src = 0;
+          } else if (strcmp((char *)token.data.scalar.value, "file") == 0) {
+            config.src = 1;
+          } else {
+            fprintf(stderr, "The source must be 'usrp' or 'file'.\n");
+            exit(EXIT_FAILURE);
+          }
+        } else if (strcmp(last_key, "fc") == 0) {
+          config.fc = atof((char *)token.data.scalar.value);
+        } else if (strcmp(last_key, "fs") == 0) {
+          config.fs = atof((char *)token.data.scalar.value);
+        } else if (strcmp(last_key, "gain") == 0) {
+          config.rx_gain = atof((char *)token.data.scalar.value);
+        } else if (strcmp(last_key, "dur") == 0) {
+          config.dur = atof((char *)token.data.scalar.value);
+          config.dur = config.dur / 1000;
+        }
+      }
+    }
+  }
+  return config;
 }

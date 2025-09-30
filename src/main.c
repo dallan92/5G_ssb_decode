@@ -6,21 +6,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main() {
+int main(int argc, char *argv[]) {
 
-  unsigned int a = 1;
+  /* Initialise params */
   struct ssbParam s = {0};
   struct ssbConf ssb_conf = {0};
   float complex *rxSig = NULL;
 
+  /* Parse config file */
+  config_t config = parse_capture_config(argv[1]);
+  int a = config.src;
+
   if (a == 0) {
-    float fs = 15.36e6;
-    float dur = 20e-3; // 2 frames.
-    float fc = 4080e6;
-    float gain = 60.0;
-    unsigned int sigLen = (unsigned int)(dur / (1 / fs));
+    /* USRP source */
+    unsigned int sigLen = (unsigned int)(config.dur / (1 / config.fs));
     rxSig = (float complex *)malloc(sizeof(float complex) * sigLen);
-    int cap = usrpIQcapture(rxSig, fs, fc, gain, sigLen);
+    int cap = usrpIQcapture(rxSig, config.fs, config.fc, config.rx_gain,sigLen);
     if (cap == 1) {
       printf("Failed to capture 5G signal from USRP!\n");
       return EXIT_FAILURE;
@@ -30,14 +31,13 @@ int main() {
     /* Determine SSB config (scs, pattern, fft size) based
     on Table 5.4.3.3-1 of TS 38.104 */
     unsigned int band = 77;
-    ssbConfig(&ssb_conf, band, fs);
+    ssbConfig(&ssb_conf, band, config.fs);
 
-    // Perform SSB detection + MIB decoding.
+    /* Perform SSB detection + MIB decoding. */
     pbchDecode(rxSig, sigLen, &s, &ssb_conf);
   } else {
-
-    float fs = 15.36e6;
-    unsigned int sigLen = 307200;
+    /* File source */
+    unsigned int sigLen = (unsigned int)(config.dur / (1 / config.fs));
     float complex *rxSig =
         (float complex *)malloc(sizeof(float complex) * sigLen);
     readTestSig(rxSig, sigLen);
@@ -45,16 +45,16 @@ int main() {
     /* Determine SSB config (scs, pattern, fft size) based
         on Table 5.4.3.3-1 of TS 38.104 */
     unsigned int band = 77;
-    ssbConfig(&ssb_conf, band, fs);
+    ssbConfig(&ssb_conf, band, config.fs);
 
-    // Perform SSB detection + MIB decoding.
+    /* Perform SSB detection + MIB decoding. */
     pbchDecode(rxSig, sigLen, &s, &ssb_conf);
   }
 
-  // Print results
+  /* Print results */
   if (s.crcRes == 0) {
     float timeOffs = (s.ssbStart * (1 / ssb_conf.fs)) * 1000;
-    printf("SSB found at sample index of %d or %0.2f ms\n", s.ssbStart,
+    printf("SSB found at sample index %d or %0.2f ms\n", s.ssbStart,
            timeOffs);
     printf("Corrected a Frequency offset of %0.3fkHz\n", s.freqOffs);
     printf("The Physical Cell ID = %d\n", s.n_id_cell);
