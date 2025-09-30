@@ -10,6 +10,6 @@ cd build </br>
 ./build.sh
 
 ## Using the software
-The software is configured using a simple YAML file. You can choose whether the signal source is a USRP or file. If it is a USRP you need to specify centre frequency, sample rate, rx gain and capture duration. If it is a file, you need to specify the sample rate and length of the capture. </br>
+The software is configured using a simple YAML file. You can choose whether the signal source is the USRP or a file. If it is a USRP, you need to specify centre frequency, sample rate, rx gain and capture duration. If it is a file, you only need to specify the sample rate and length of the capture. </br>
 
 The program is launched  by running ./cellSearch path_to_config_file path_to_test_signal if you are reading the signal from a file. If you are using the USRP, it is simply launched with ./cellSearch path_to_config_file.
