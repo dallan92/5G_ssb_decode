@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     printf("Corrected a Frequency offset of %0.3fkHz\n", s.freqOffs);
     printf("The Physical Cell ID = %d\n", s.n_id_cell);
     printf("The SSB position bitmap = \"%s\"\n", s.ssb_pos);
-    printf("The RSRP is %f dBm\n", s.rsrp);
+    printf("The RSRP = %f dBm\n", s.rsrp);
     printf("The MIB was decoded successfully...\n");
     printf(" SFN = %d\n", s.sfn);
     printf(" Common sub-carrier spacing = %dkHz\n", s.scsCommon);
