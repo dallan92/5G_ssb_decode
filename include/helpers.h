@@ -18,7 +18,7 @@ void intFliplr(int *d_orig, int *d_flip, int length);
 void max(float *arr, int length, float *mx, int *indx);
 void find(int *arr, int *indices, int length, int K, int dir);
 void maxThresh(float *arr, float *thresh, int length, float *max, int *indx);
-void readTestSig(float complex *x, int length);
+void readTestSig(float complex *x, int length, char *path);
 void sig2file(void *x, int type, int length, char *path);
 float complex compAvg(float complex *x, int length);
 float reAvg(float *x, int length);
@@ -31,5 +31,5 @@ void mag2(float complex *x, float *y, int length);
 float abs2(float complex x);
 float var(float complex *x, unsigned int len);
 void dec2bin(unsigned int x, unsigned int n, unsigned char *bin);
-config_t parse_capture_config(const char *filename); 
+config_t parse_capture_config(const char *filename);
 #endif

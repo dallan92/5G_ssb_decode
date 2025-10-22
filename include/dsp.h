@@ -25,6 +25,9 @@ float complex compCrossCorr(float complex *x, float complex *y, int length);
 void fastConv(float complex *x, int xLen, float complex *h, unsigned int bs,
               struct fftParam *ft, struct fftParam *ift, float complex *y);
 float *movingAvg(float *y, int sigLen, int ml);
-float complex *linInterp(float complex *y, int yLen, int *x, int *q);
+float complex *linInterp(const float complex *y, int yLen, int *x, int *q);
+float complex *freqInterp(const float complex *H, const unsigned int HLen,
+                          const unsigned int xGap,
+                          const unsigned int interpLen);
 // float complex *polyDec2hb(float complex *in, const unsigned int sigLen);
 #endif
