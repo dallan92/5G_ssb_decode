@@ -21,7 +21,8 @@ int main(int argc, char *argv[]) {
     /* USRP source */
     unsigned int sigLen = (unsigned int)(config.dur / (1 / config.fs));
     rxSig = (float complex *)malloc(sizeof(float complex) * sigLen);
-    int cap = usrpIQcapture(rxSig, config.fs, config.fc, config.rx_gain,sigLen);
+    int cap =
+        usrpIQcapture(rxSig, config.fs, config.fc, config.rx_gain, sigLen);
     if (cap == 1) {
       printf("Failed to capture 5G signal from USRP!\n");
       return EXIT_FAILURE;
@@ -40,7 +41,7 @@ int main(int argc, char *argv[]) {
     unsigned int sigLen = (unsigned int)(config.dur / (1 / config.fs));
     float complex *rxSig =
         (float complex *)malloc(sizeof(float complex) * sigLen);
-    readTestSig(rxSig, sigLen);
+    readTestSig(rxSig, sigLen, argv[2]);
 
     /* Determine SSB config (scs, pattern, fft size) based
         on Table 5.4.3.3-1 of TS 38.104 */
@@ -54,8 +55,7 @@ int main(int argc, char *argv[]) {
   /* Print results */
   if (s.crcRes == 0) {
     float timeOffs = (s.ssbStart * (1 / ssb_conf.fs)) * 1000;
-    printf("SSB found at sample index %d or %0.2f ms\n", s.ssbStart,
-           timeOffs);
+    printf("SSB found at sample index %d or %0.2f ms\n", s.ssbStart, timeOffs);
     printf("Corrected a Frequency offset of %0.3fkHz\n", s.freqOffs);
     printf("The Physical Cell ID = %d\n", s.n_id_cell);
     printf("The SSB position bitmap = \"%s\"\n", s.ssb_pos);
