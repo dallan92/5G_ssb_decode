@@ -5,10 +5,10 @@
 #include <yaml.h>
 
 /* Function to read test signal from MATLAB */
-void readTestSig(float complex *x, int length) {
+void readTestSig(float complex *x, int length, char *path) {
   /* Open file for reading */
   FILE *fp;
-  fp = fopen("../tests/testSignal.txt", "r");
+  fp = fopen(path, "r");
   if (fp == NULL) {
     fprintf(stderr, "The file containing test signal does not exist!\n");
     exit(EXIT_FAILURE);
@@ -303,7 +303,7 @@ void validate_config(const config_t *configParams) {
   }
 }
 
-/* Parse config.yaml */
+/* Parse YAML config file. */
 config_t parse_capture_config(const char *filename) {
 
   // Open config file for reading
