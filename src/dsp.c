@@ -198,8 +198,8 @@ float *movingAvg(float *x, int sigLen, int ml) {
   return y;
 }
 
-/* Function to perform compalex linear interpolation between two points (Y1, X1)
- * and (Y2, X2) at points q */
+/* Function to perform complex linear interpolation between two points (X1, Y1)
+ * and (X2, Y2) at points q */
 static void interp(float complex y1, float complex y2, int x1, int x2, int num,
                    int step, float complex *yInterp) {
   int X = x1 + step;
@@ -219,7 +219,7 @@ static void interp(float complex y1, float complex y2, int x1, int x2, int num,
 
 /* Function to perform linear interpolation of a complex sequence at points x
  * evaluated at query points q  */
-float complex *linInterp(float complex *y, int yLen, int *x, int *q) {
+float complex *linInterp(const float complex *y, int yLen, int *x, int *q) {
 
   // No. of interpolations between adjacent points
   unsigned int nInterp = yLen - 1;
@@ -264,4 +264,25 @@ float complex *linInterp(float complex *y, int yLen, int *x, int *q) {
   free(yInt);
 
   return yFinal;
+}
+
+/* Function to perform frequency interpolation */
+float complex *freqInterp(const float complex *H, const unsigned int HLen,
+                          const unsigned int xGap,
+                          const unsigned int interpLen) {
+
+  int x[HLen];
+  int q[interpLen];
+  int j = 1;
+  int k = 1;
+  for (int i = 0; i < HLen; i++) {
+    x[i] = j;
+    j += xGap;
+  }
+  for (int i = 0; i < interpLen; i++) {
+    q[i] = k;
+    k += 1;
+  }
+
+  return linInterp(H, HLen, x, q);
 }
