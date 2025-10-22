@@ -209,6 +209,8 @@ static unsigned int sssCorr(float complex *rgSSB, unsigned int n_id_2) {
   return n_id_1;
 }
 
+/* ---------- Physical Broadcast Channel (PBCH) ---------- */
+
 /* Find transmitted PBCH DMRS sequence and i_bar_ssb for de-srambling of MIB */
 static void dmrsSearch(float complex *rgSSB, int n_id_cell, float complex *dmrs,
                        int *i_bar_ssb) {
@@ -298,8 +300,6 @@ static void dmrsSearch(float complex *rgSSB, int n_id_cell, float complex *dmrs,
   free(cabs);
 }
 
-/* ---------- Physical Broadcast Channel (PBCH) ---------- */
-
 /* Generate scrambling sequence for PBCH */
 static void pbchPRS(int n_id_cell, int v, float *seq) {
   /* Generate PRS */
@@ -332,8 +332,63 @@ static void pbchRGExtract(float complex *rxPBCH, int nfft,
   }
 }
 
-/* Channel estimation for PBCH - assume channel is static across all SSB symbols
- */
+/* Fill in channel estimates for sub-carriers on edges of PBCH resource grid */
+static void filledgescPBCH(float complex *H_interp, const unsigned int v,
+                           const unsigned int interplen,
+                           float complex *H_final) {
+
+  if (v == 0) {
+    if (interplen == 45) {
+      memcpy(&H_final[0], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {45, 46, 47};
+      int indNear[] = {44, 44, 44};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    } else if (interplen == 237) {
+      memcpy(&H_final[0], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {237, 238, 239};
+      int indNear[] = {236, 236, 236};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    }
+  } else if (v == 1) {
+    if (interplen == 45) {
+      memcpy(&H_final[1], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {0, 46, 47};
+      int indNear[] = {0, 44, 44};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    } else if (interplen == 237) {
+      memcpy(&H_final[1], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {0, 238, 239};
+      int indNear[] = {0, 236, 236};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    }
+  } else if (v == 2) {
+    if (interplen == 45) {
+      memcpy(&H_final[2], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {0, 1, 47};
+      int indNear[] = {0, 0, 44};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    } else if (interplen == 237) {
+      memcpy(&H_final[2], &H_interp[0], sizeof(float complex) * interplen);
+      int indOuter[] = {0, 1, 239};
+      int indNear[] = {0, 0, 236};
+      for (int i = 0; i < 3; i++)
+        H_final[indOuter[i]] = H_interp[indNear[i]];
+    }
+  } else if (v == 3) {
+    memcpy(&H_final[3], &H_interp[0], sizeof(float complex) * interplen);
+    int indOuter[] = {0, 1, 2};
+    int indNear[] = {0, 0, 0};
+    for (int i = 0; i < 3; i++)
+      H_final[indOuter[i]] = H_interp[indNear[i]];
+  }
+}
+
+/* Channel estimation for PBCH */
 static void pbchChanEst(float complex *pbchSymbs, float complex *dmrs, int v,
                         float complex *H, float *rsrp) {
 
@@ -373,180 +428,64 @@ static void pbchChanEst(float complex *pbchSymbs, float complex *dmrs, int v,
   *rsrp = 10 * log10(dmrs_pwr) -
           60; // Needs actual calibration but just using rx gain for now.
 
-  /* Interpolate in frequency domain to get channel estimates for data positions
-   */
+  /* Interpolate in frequency domain to get channel estimates for data
+   * sub-carriers. */
   const unsigned int interplen = 237;
   const unsigned int ndmrsPerSymb = 60;
-  float complex *H_interp_1 =
-      (float complex *)malloc(sizeof(float complex) * interplen);
-  float complex *H_interp_3 =
-      (float complex *)malloc(sizeof(float complex) * interplen);
-  int x[ndmrsPerSymb];
-  int q[interplen];
-  int j = 1;
-  int k = 1;
-  for (int i = 0; i < ndmrsPerSymb; i++) {
-    x[i] = j;
-    j += 4;
-  }
-  for (int i = 0; i < interplen; i++) {
-    q[i] = k;
-    k += 1;
-  }
+  const unsigned int xGap = 4;
   const unsigned int start = 84;
-  H_interp_1 = linInterp(H_dmrs, ndmrsPerSymb, x, q);
-  H_interp_3 = linInterp(&H_dmrs[start], ndmrsPerSymb, x, q);
+  const unsigned int interpLenSymb2 = 45;
+  const unsigned int ndmrsUpLow = 12;
 
-  /* Final channel estimates for each symbol */
+  float complex *H_interp_1 = freqInterp(H_dmrs, ndmrsPerSymb, xGap, interplen);
+  float complex *H_interp_3 =
+      freqInterp(&H_dmrs[start], ndmrsPerSymb, xGap, interplen);
+  float complex *H_interp_2_lower =
+      freqInterp(&H_dmrs[ndmrsPerSymb], ndmrsUpLow, xGap, interpLenSymb2);
+  float complex *H_interp_2_upper = freqInterp(
+      &H_dmrs[ndmrsPerSymb + ndmrsUpLow], ndmrsUpLow, xGap, interpLenSymb2);
+
+  /*  Fill in channel estimates for sub-carriers on edges of resource grid. */
   const unsigned int numREssbPerSymb = 240;
   float complex *H_final_1 =
       (float complex *)malloc(sizeof(float complex) * numREssbPerSymb);
   float complex *H_final_3 =
       (float complex *)malloc(sizeof(float complex) * numREssbPerSymb);
-
-  /* Populate final channel estimate across entire resource grid including
-   * missing sub-carriers with no channel estimate */
-  if (v == 0) {
-    memcpy(&H_final_1[0], &H_interp_1[0], sizeof(float complex) * interplen);
-    memcpy(&H_final_3[0], &H_interp_3[0], sizeof(float complex) * interplen);
-    int indOuter[] = {237, 238, 239};
-    int indNear[] = {236, 236, 236};
-    for (int i = 0; i < 3; i++) {
-      H_final_1[indOuter[i]] = H_interp_1[indNear[i]];
-      H_final_3[indOuter[i]] = H_interp_3[indNear[i]];
-    }
-  } else if (v == 1) {
-    memcpy(&H_final_1[1], &H_interp_1[0], sizeof(float complex) * interplen);
-    memcpy(&H_final_3[1], &H_interp_3[0], sizeof(float complex) * interplen);
-    int indOuter[] = {0, 238, 239};
-    int indNear[] = {0, 236, 236};
-    for (int i = 0; i < 3; i++) {
-      H_final_1[indOuter[i]] = H_interp_1[indNear[i]];
-      H_final_3[indOuter[i]] = H_interp_3[indNear[i]];
-    }
-  } else if (v == 2) {
-    memcpy(&H_final_1[2], &H_interp_1[0], sizeof(float complex) * interplen);
-    memcpy(&H_final_3[2], &H_interp_3[0], sizeof(float complex) * interplen);
-    int indOuter[] = {0, 1, 239};
-    int indNear[] = {0, 0, 236};
-    for (int i = 0; i < 3; i++) {
-      H_final_1[indOuter[i]] = H_interp_1[indNear[i]];
-      H_final_3[indOuter[i]] = H_interp_3[indNear[i]];
-    }
-  } else if (v == 3) {
-    memcpy(&H_final_1[3], &H_interp_1[0], sizeof(float complex) * interplen);
-    memcpy(&H_final_3[3], &H_interp_3[0], sizeof(float complex) * interplen);
-    int indOuter[] = {0, 1, 2};
-    int indNear[] = {0, 0, 0};
-    for (int i = 0; i < 3; i++) {
-      H_final_1[indOuter[i]] = H_interp_1[indNear[i]];
-      H_final_3[indOuter[i]] = H_interp_3[indNear[i]];
-    }
-  }
-
-  /* Create channel estimate for symbol 2 */
-  const unsigned int interpLenSymb2 = 45;
-  const unsigned int ndmrsUpLow = 12;
-  float complex *H_interp_2_lower =
-      (float complex *)malloc(sizeof(float complex) * interpLenSymb2);
-  float complex *H_interp_2_upper =
-      (float complex *)malloc(sizeof(float complex) * interpLenSymb2);
-
-  int x2[ndmrsUpLow];
-  int q2[interpLenSymb2];
-  j = 1;
-  k = 1;
-  for (int i = 0; i < ndmrsUpLow; i++) {
-    x2[i] = j;
-    j += 4;
-  }
-  for (int i = 0; i < interpLenSymb2; i++) {
-    q2[i] = k;
-    k += 1;
-  }
-  H_interp_2_lower = linInterp(&H_dmrs[ndmrsPerSymb], ndmrsUpLow, x2, q2);
-  H_interp_2_upper =
-      linInterp(&H_dmrs[ndmrsPerSymb + ndmrsUpLow], ndmrsUpLow, x2, q2);
-
   float complex *H_final_2_lower =
       (float complex *)malloc(sizeof(float complex) * (interpLenSymb2 + 3));
   float complex *H_final_2_upper =
       (float complex *)malloc(sizeof(float complex) * (interpLenSymb2 + 3));
 
-  // Fill in missing outer sub-carriers
-  if (v == 0) {
-    memcpy(&H_final_2_lower[0], &H_interp_2_lower[0],
-           sizeof(float complex) * interpLenSymb2);
-    memcpy(&H_final_2_upper[0], &H_interp_2_upper[0],
-           sizeof(float complex) * interpLenSymb2);
-    int indOuter[] = {45, 46, 47};
-    int indNear[] = {44, 44, 44};
-    for (int i = 0; i < 3; i++) {
-      H_final_2_lower[indOuter[i]] = H_interp_2_lower[indNear[i]];
-      H_final_2_upper[indOuter[i]] = H_interp_2_upper[indNear[i]];
-    }
-  } else if (v == 1) {
-    memcpy(&H_final_2_lower[1], &H_interp_2_lower[0],
-           sizeof(float complex) * interpLenSymb2);
-    memcpy(&H_final_2_upper[1], &H_interp_2_upper[0],
-           sizeof(float complex) * interpLenSymb2);
-    int indOuter[] = {0, 46, 47};
-    int indNear[] = {0, 44, 44};
-    for (int i = 0; i < 3; i++) {
-      H_final_2_lower[indOuter[i]] = H_interp_2_lower[indNear[i]];
-      H_final_2_upper[indOuter[i]] = H_interp_2_upper[indNear[i]];
-    }
-  } else if (v == 2) {
-    memcpy(&H_final_2_lower[2], &H_interp_2_lower[0],
-           sizeof(float complex) * interpLenSymb2);
-    memcpy(&H_final_2_upper[2], &H_interp_2_upper[0],
-           sizeof(float complex) * interpLenSymb2);
-    int indOuter[] = {0, 1, 47};
-    int indNear[] = {0, 0, 44};
-    for (int i = 0; i < 3; i++) {
-      H_final_2_lower[indOuter[i]] = H_interp_2_lower[indNear[i]];
-      H_final_2_upper[indOuter[i]] = H_interp_2_upper[indNear[i]];
-    }
-  } else if (v == 3) {
-    memcpy(&H_final_2_lower[3], &H_interp_2_lower[0],
-           sizeof(float complex) * interpLenSymb2);
-    memcpy(&H_final_2_upper[3], &H_interp_2_upper[0],
-           sizeof(float complex) * interpLenSymb2);
-    int indOuter[] = {0, 1, 2};
-    int indNear[] = {0, 0, 0};
-    for (int i = 0; i < 3; i++) {
-      H_final_2_lower[indOuter[i]] = H_interp_2_lower[indNear[i]];
-      H_final_2_upper[indOuter[i]] = H_interp_2_upper[indNear[i]];
+  filledgescPBCH(H_interp_1, v, interplen, H_final_1);
+  filledgescPBCH(H_interp_3, v, interplen, H_final_3);
+  filledgescPBCH(H_interp_2_lower, v, interpLenSymb2, H_final_2_lower);
+  filledgescPBCH(H_interp_2_upper, v, interpLenSymb2, H_final_2_upper);
+
+  /* Constrct final channel estimate */
+  const unsigned int totalRE = 3 * numREssbPerSymb;
+  for (int i = 0; i < totalRE; i++) {
+    if (i >= 0 && i <= 239) {
+      H[i] = H_final_1[i];
+    } else if (i >= 240 && i <= 287) {
+      H[i] = H_final_2_lower[i - 240];
+    } else if (i >= 432 && i <= 479) {
+      H[i] = H_final_2_upper[i - 432];
+    } else if (i >= 480 && i <= 719) {
+      H[i] = H_final_3[i - 480];
     }
   }
-
-  /* Create final estimate for channel 2 */
-  float complex *H_final_2_full =
-      (float complex *)calloc(sizeof(float complex), numREssbPerSymb);
-  memcpy(&H_final_2_full[0], &H_final_2_lower[0],
-         sizeof(float complex) * (interpLenSymb2 + 3));
-  memcpy(&H_final_2_full[192], &H_final_2_upper[0],
-         sizeof(float complex) * (interpLenSymb2 + 3));
-
-  /* Create final channel estimate for entire resource grid  */
-  memcpy(H, H_final_1, sizeof(float complex) * numREssbPerSymb);
-  memcpy(&H[numREssbPerSymb], H_final_2_full,
-         sizeof(float complex) * numREssbPerSymb);
-  memcpy(&H[2 * numREssbPerSymb], H_final_3,
-         sizeof(float complex) * numREssbPerSymb);
 
   /* Free memory resources */
   free(H_dmrs);
   free(dmrs_abs2);
   free(H_interp_1);
-  free(H_final_1);
   free(H_interp_3);
-  free(H_final_3);
   free(H_interp_2_lower);
   free(H_interp_2_upper);
+  free(H_final_1);
+  free(H_final_3);
   free(H_final_2_lower);
   free(H_final_2_upper);
-  free(H_final_2_full);
 }
 
 /* Equalise PBCH symbols */
